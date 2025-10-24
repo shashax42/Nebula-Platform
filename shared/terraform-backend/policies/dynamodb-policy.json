@@ -1,0 +1,37 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TerraformStateLocking",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "${aws_account_id}"
+      },
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Scan",
+        "dynamodb:Query",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "arn:aws:dynamodb:${region}:${aws_account_id}:table/${table_name}",
+      "Condition": {
+        "ForAllValues:StringEquals": {
+          "dynamodb:LeadingKeys": ["${table_name}/*/terraform.tfstate"]
+        }
+      }
+    },
+    {
+      "Sid": "PreventTableDeletion",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "dynamodb:DeleteTable",
+        "dynamodb:DeleteBackup"
+      ],
+      "Resource": "arn:aws:dynamodb:${region}:${aws_account_id}:table/${table_name}"
+    }
+  ]
+}

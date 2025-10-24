@@ -1,0 +1,63 @@
+{
+  "Version": "2012-10-17",
+  "Id": "terraform-state-kms-policy",
+  "Statement": [
+    {
+      "Sid": "Enable IAM User Permissions",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${aws_account_id}:root"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Allow Terraform State Encryption",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::${aws_account_id}:role/TerraformRole",
+          "arn:aws:iam::${aws_account_id}:user/terraform-ci"
+        ]
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:CreateGrant",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "s3.${region}.amazonaws.com",
+            "dynamodb.${region}.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "Allow CloudWatch Logs",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logs.${region}.amazonaws.com"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:CreateGrant",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "ArnLike": {
+          "kms:EncryptionContext:aws:logs:arn": "arn:aws:logs:${region}:${aws_account_id}:log-group:*"
+        }
+      }
+    }
+  ]
+}

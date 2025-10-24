@@ -1,0 +1,52 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CrossAccountTerraformAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::${dev_account_id}:role/TerraformRole",
+          "arn:aws:iam::${staging_account_id}:role/TerraformRole",
+          "arn:aws:iam::${prod_account_id}:role/TerraformRole"
+        ]
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${bucket_name}",
+        "arn:aws:s3:::${bucket_name}/*"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "env/dev/*",
+            "env/staging/*", 
+            "env/prod/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "CrossAccountDynamoDBAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::${dev_account_id}:role/TerraformRole",
+          "arn:aws:iam::${staging_account_id}:role/TerraformRole",
+          "arn:aws:iam::${prod_account_id}:role/TerraformRole"
+        ]
+      },
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:${region}:${aws_account_id}:table/${table_name}"
+    }
+  ]
+}

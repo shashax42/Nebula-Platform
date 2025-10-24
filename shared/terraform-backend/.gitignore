@@ -1,0 +1,23 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Variables files with sensitive data
+terraform.tfvars
+*.auto.tfvars
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Backup files
+*.backup
+backup/

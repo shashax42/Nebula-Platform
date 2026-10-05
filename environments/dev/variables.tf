@@ -187,3 +187,17 @@ variable "redis_port3" {
   type        = number
   
 }
+
+# GitOps 설정
+variable "gitops_repo_url" {
+  description = "ArgoCD가 동기화할 GitOps 레포"
+  type        = string
+  default     = "https://github.com/shashax42/nebula-gitops.git"
+}
+
+variable "gitops_token" {
+  description = "GitOps 레포 읽기 토큰 (public 레포면 빈 값)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

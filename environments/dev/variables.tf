@@ -201,3 +201,9 @@ variable "gitops_token" {
   default     = ""
   sensitive   = true
 }
+
+variable "enable_aws_platform_apps" {
+  description = "nebula-gitops platform/aws (모니터링 스택, AMP 카나리 분석)를 ArgoCD 로 동기화. Nebula-Monitoring apply 및 값 기록 후 true"
+  type        = bool
+  default     = false
+}

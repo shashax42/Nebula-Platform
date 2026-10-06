@@ -136,6 +136,18 @@ cd modules/environment && terraform init -backend=false && terraform test
 
 PR 마다 `.github/workflows/validate.yml` 이 fmt · validate(3개 환경) · test · helm lint · compose · Vagrantfile/셸 문법을 검사한다.
 
+### 서비스 연결 확인 (dev/compose, 2026-10-06)
+
+`env/*.env`(= Terraform 이 만드는 ConfigMap/Secret 과 같은 변수 이름)로 nebula-services `6a5f289` 를 띄우고,
+OTLP 를 Nebula-Monitoring `tools/local-stack` 으로 보낸 결과:
+
+| 확인 | 결과 |
+|---|---|
+| service-order / service-product / service-account 기동 (`PROFILE=kubernetes`, MySQL·Redis Cluster·Kafka) | readiness `UP`, `ddl_auto=update` 로 테이블 생성 |
+| 주문 사가: 주문 8건, 재고 5 | `purchase` 발행 8 → 소비 8 → 재고 부족 거절 3 → `refund` → 주문 취소 3 (DB: PENDING 5 / CANCELED 3) |
+| 텔레메트리 → Monitoring | span metrics(Kafka `purchase`/`refund` 토픽 차원 포함), `nebula_commerce_funnel_events_total` 단계별 카운터, JVM·HTTP 메트릭이 Prometheus 에 도착 |
+| core-gateway | **기동 실패** — 아래 "알려진 한계" |
+
 ## 알려진 한계
 
 - **스키마 관리**: nebula-services 에 마이그레이션 도구가 없어 `SPRING_JPA_HIBERNATE_DDL_AUTO=update` 로 테이블을 만든다.
@@ -146,4 +158,7 @@ PR 마다 `.github/workflows/validate.yml` 이 fmt · validate(3개 환경) · t
   DB·Redis 연결 정보가 없어 서비스 파드는 뜨지 않는다. 서비스 단위 실험은 `dev/compose` 를 함께 쓴다.
 - **core-gateway 라우팅**: nebula-services 의 `route.yml` 라우트가 주석 처리되어 있어 게이트웨이가 하위 서비스로 프록시하지 않는다.
   인프라 경로(ALB → 게이트웨이)와 서비스 간 정책(Istio)은 준비되어 있고, 라우트는 서비스 레포에서 켜야 한다.
+- **core-gateway 기동 실패 (서비스 코드)**: `6a5f289` 빌드는 환경과 무관하게 시작 단계에서 멈춘다
+  (`okta-spring-boot` 가 Spring Boot 3.5 에서 사라진 `OAuth2ResourceServerProperties` 를 찾음). 의존성 정리가 nebula-services 에 필요하다.
+- **존재하지 않는 상품 조회 시 500 (서비스 코드)**: service-product `BizException` 의 정적 ResourceBundle 초기화가 실패해 404 대신 500 이 난다.
 - **EKS 버전**: 1.31 은 표준 지원이 끝나 연장 지원 요금이 붙는다. 1.32 → 1.33 순차 업그레이드가 필요하다 (`cluster_version`).

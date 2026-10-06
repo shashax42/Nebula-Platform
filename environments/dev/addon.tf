@@ -39,7 +39,8 @@ resource "aws_iam_openid_connect_provider" "oidc_provider" {
 
 # AWS Load Balancer Controller용 IAM Role 생성
 module "nlb_controller_irsa" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0" # v6 에서 이 하위 모듈이 iam-role-for-service-accounts 로 바뀌어 고정 필요
 
   role_name = "${var.cluster_name}-${var.nlb_chart.name}"
 

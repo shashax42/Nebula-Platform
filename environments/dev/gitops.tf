@@ -22,6 +22,50 @@ resource "helm_release" "argo_rollouts" {
   version          = "2.43.5"
   namespace        = "argo-rollouts"
   create_namespace = true
+
+  # 메트릭 기반 카나리 분석: 컨트롤러가 IRSA 로 AMP 에 SigV4 질의한다 (nebula-gitops platform/aws/analysis-slo-canary.yaml)
+  values = [yamlencode({
+    serviceAccount = {
+      annotations = {
+        "eks.amazonaws.com/role-arn" = module.argo_rollouts_irsa.iam_role_arn
+      }
+    }
+  })]
+}
+
+# Argo Rollouts → AMP 조회 권한 (읽기 전용, 이 계정·리전의 워크스페이스로 한정)
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_policy" "argo_rollouts_amp_query" {
+  name        = "${var.cluster_name}-argo-rollouts-amp-query"
+  description = "Argo Rollouts canary analysis: query Amazon Managed Prometheus"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["aps:QueryMetrics", "aps:GetSeries", "aps:GetLabels", "aps:GetMetricMetadata"]
+      Resource = "arn:aws:aps:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:workspace/*"
+    }]
+  })
+}
+
+module "argo_rollouts_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0" # v6 에서 이 하위 모듈이 iam-role-for-service-accounts 로 바뀌어 고정 필요
+
+  role_name = "${var.cluster_name}-argo-rollouts"
+  role_policy_arns = {
+    amp_query = aws_iam_policy.argo_rollouts_amp_query.arn
+  }
+
+  depends_on = [data.aws_eks_cluster.cluster, time_sleep.wait_for_eks]
+
+  oidc_providers = {
+    one = {
+      provider_arn               = length(data.aws_iam_openid_connect_provider.existing_oidc.arn) > 0 ? data.aws_iam_openid_connect_provider.existing_oidc.arn : aws_iam_openid_connect_provider.oidc_provider[0].arn
+      namespace_service_accounts = ["argo-rollouts:argo-rollouts"]
+    }
+  }
 }
 
 resource "helm_release" "kyverno" {
@@ -85,7 +129,7 @@ resource "helm_release" "argocd_root" {
   namespace  = "argocd"
 
   values = [yamlencode({
-    applications = {
+    applications = merge({
       nebula-root = {
         namespace = "argocd"
         project   = "default"
@@ -102,6 +146,27 @@ resource "helm_release" "argocd_root" {
           automated = { prune = true, selfHeal = true }
         }
       }
-    }
+      },
+      # AWS 계정에 묶인 플랫폼 앱 (모니터링 스택, AMP 기반 카나리 분석). kind 로컬 E2E 에는 없다.
+      # Nebula-Monitoring 을 apply 하고 nebula-gitops/platform/aws 의 값을 채운 뒤 켠다.
+      var.enable_aws_platform_apps ? {
+        nebula-aws = {
+          namespace = "argocd"
+          project   = "default"
+          source = {
+            repoURL        = var.gitops_repo_url
+            targetRevision = "main"
+            path           = "platform/aws"
+          }
+          destination = {
+            server    = "https://kubernetes.default.svc"
+            namespace = "argocd"
+          }
+          syncPolicy = {
+            automated = { prune = true, selfHeal = true }
+          }
+        }
+      } : {}
+    )
   })]
 }

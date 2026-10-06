@@ -1,0 +1,59 @@
+# 인프라 PR 게이트: 클라우드 자격 증명 없이 확인할 수 있는 것만 검사한다
+#   - terraform fmt / validate (dev, staging, prod)
+#   - terraform test: mock provider 로 세 환경 프로파일의 plan 을 검증 (modules/environment/tests)
+#   - helm lint / template: 트래픽 진입 차트 (Istio 유무 두 가지)
+#   - docker compose config, Vagrantfile / 셸 스크립트 문법
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: fmt
+        run: terraform fmt -check -recursive modules/environment modules/data/rds environments
+
+      - name: validate
+        run: |
+          for env in dev staging prod; do
+            echo "== ${env}"
+            terraform -chdir="environments/${env}" init -backend=false -input=false >/dev/null
+            terraform -chdir="environments/${env}" validate
+          done
+
+      - name: test (mock plan for dev / staging / prod)
+        run: |
+          terraform -chdir=modules/environment init -backend=false -input=false >/dev/null
+          terraform -chdir=modules/environment test
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+
+      - name: helm lint / template (nebula-edge)
+        run: |
+          helm lint charts/nebula-edge --strict
+          helm template edge charts/nebula-edge >/dev/null
+          helm template edge charts/nebula-edge --set istio.enabled=true --set istio.mtlsMode=STRICT >/dev/null
+
+      - name: docker compose config (dev)
+        run: docker compose -f environments/dev/compose/docker-compose.yaml --profile app config -q
+
+      - name: Vagrantfile / shell syntax (staging lab)
+        run: |
+          ruby -c environments/staging/vagrant/Vagrantfile
+          shellcheck -x -e SC1091 environments/staging/vagrant/*.sh environments/staging/vagrant/*/*.sh

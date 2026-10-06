@@ -68,7 +68,7 @@ resource "aws_security_group" "redis" {
 resource "aws_elasticache_subnet_group" "redis" {
   count = var.create_subnet_group ? 1 : 0
   
-  name        = "${var.name_prefix}-redis-subnet-group"
+  name        = "${var.name_prefix}-redis-${var.environment}-subnets"
   subnet_ids  = var.subnet_ids
   description = "Subnet group for Redis cluster ${var.name_prefix}"
 
@@ -86,12 +86,13 @@ resource "aws_elasticache_subnet_group" "redis" {
 resource "aws_elasticache_parameter_group" "redis" {
   count = var.create_parameter_group ? 1 : 0
   
-  name        = "${var.name_prefix}-redis-param-group"
+  name        = "${var.name_prefix}-redis-${var.environment}-params"
   family      = var.parameter_group_family
   description = "Parameter group for Redis cluster ${var.name_prefix}"
 
   dynamic "parameter" {
-    for_each = var.parameters
+    # 클러스터 모드는 cluster-enabled 파라미터가 있어야 샤드(node group)를 만들 수 있다
+    for_each = concat(var.parameters, var.cluster_mode_enabled ? [{ name = "cluster-enabled", value = "yes" }] : [])
     content {
       name  = parameter.value.name
       value = parameter.value.value
@@ -114,7 +115,11 @@ resource "aws_elasticache_replication_group" "redis" {
   
   # 노드 설정
   node_type                 = var.node_type
-  num_cache_clusters        = var.num_cache_clusters
+
+  # 클러스터 모드: 샤드 수 × (1 primary + N replica). 비클러스터 모드: 노드 수
+  num_cache_clusters      = var.cluster_mode_enabled ? null : var.num_cache_clusters
+  num_node_groups         = var.cluster_mode_enabled ? var.num_node_groups : null
+  replicas_per_node_group = var.cluster_mode_enabled ? var.replicas_per_node_group : null
   
   # 엔진 설정
   engine_version            = var.engine_version
@@ -140,11 +145,14 @@ resource "aws_elasticache_replication_group" "redis" {
   automatic_failover_enabled = var.automatic_failover_enabled
   
   # 로그 설정
-  log_delivery_configuration {
-    destination      = var.log_destination
-    destination_type = var.log_destination_type
-    log_format      = var.log_format
-    log_type        = "slow-log"
+  dynamic "log_delivery_configuration" {
+    for_each = var.log_destination == null ? [] : [var.log_destination]
+    content {
+      destination      = log_delivery_configuration.value
+      destination_type = var.log_destination_type
+      log_format       = var.log_format
+      log_type         = "slow-log"
+    }
   }
   
   tags = merge(

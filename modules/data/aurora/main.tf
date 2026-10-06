@@ -23,7 +23,6 @@ locals {
       Module      = "data/aurora"
       Environment = var.environment
       ManagedBy   = "terraform"
-      CreatedAt   = timestamp()
     }
   )
 }
@@ -114,7 +113,7 @@ resource "aws_rds_cluster" "aurora" {
   preferred_backup_window        = var.backup_window
   preferred_maintenance_window   = var.maintenance_window
   skip_final_snapshot           = var.skip_final_snapshot
-  final_snapshot_identifier     = var.skip_final_snapshot ? null : "${local.cluster_identifier}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  final_snapshot_identifier     = var.skip_final_snapshot ? null : "${local.cluster_identifier}-final"
   
   # 암호화
   storage_encrypted             = var.storage_encrypted
@@ -150,6 +149,10 @@ resource "aws_rds_cluster_instance" "aurora" {
   
   performance_insights_enabled = var.performance_insights_enabled
   monitoring_interval         = var.monitoring_interval
+  monitoring_role_arn         = var.monitoring_interval > 0 ? aws_iam_role.enhanced_monitoring[0].arn : null
+
+  # Multi-AZ: writer 와 reader 를 서로 다른 AZ 에 고정 (장애 시 다른 AZ 의 reader 가 writer 로 승격)
+  availability_zone = length(var.availability_zones) > 0 ? element(var.availability_zones, count.index) : null
   
   # 인스턴스별 역할 지정 (Writer/Reader)
   promotion_tier             = count.index
@@ -161,4 +164,29 @@ resource "aws_rds_cluster_instance" "aurora" {
       Role = count.index == 0 ? "writer" : "reader"
     }
   )
+}
+
+# ========================================
+# Enhanced Monitoring Role (monitoring_interval > 0 이면 필수)
+# ========================================
+resource "aws_iam_role" "enhanced_monitoring" {
+  count       = var.monitoring_interval > 0 ? 1 : 0
+  name_prefix = "${var.name_prefix}-rds-mon-"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+    }]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "enhanced_monitoring" {
+  count      = var.monitoring_interval > 0 ? 1 : 0
+  role       = aws_iam_role.enhanced_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }

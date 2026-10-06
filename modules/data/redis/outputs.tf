@@ -41,3 +41,11 @@ output "member_clusters" {
   description = "Redis member clusters"
   value       = aws_elasticache_replication_group.redis.member_clusters
 }
+
+output "endpoint_address" {
+  description = "애플리케이션이 접속할 주소 (클러스터 모드: configuration endpoint, 아니면 primary endpoint)"
+  value = coalesce(
+    aws_elasticache_replication_group.redis.configuration_endpoint_address,
+    aws_elasticache_replication_group.redis.primary_endpoint_address,
+  )
+}

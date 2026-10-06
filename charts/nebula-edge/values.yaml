@@ -1,0 +1,47 @@
+# Nebula-Platform modules/environment/edge.tf 가 환경별 값을 넣는다.
+environment: dev
+
+# 외부 진입점: AWS Load Balancer Controller 가 이 Ingress 를 보고 ALB 를 만든다
+ingress:
+  enabled: true
+  scheme: internet-facing
+  certificateArn: ""           # 있으면 HTTPS(443) 리스너 + 80 → 443 리다이렉트
+  allowedCidrs: ["0.0.0.0/0"]
+
+# 앱 진입 서비스 (nebula-gitops core-gateway)
+backend:
+  namespace: backend
+  service: core-gateway
+  port: 80
+  healthCheckPath: /actuator/health/readiness
+
+# staging / prod: ALB → istio-ingressgateway → VirtualService → core-gateway
+istio:
+  enabled: false
+  mtlsMode: PERMISSIVE         # PERMISSIVE | STRICT
+  gatewayNamespace: istio-ingress
+  gatewayService: istio-ingressgateway
+  gatewaySelector:
+    istio: ingressgateway
+
+# 장애 전파 차단 (Istio 사용 시). 앱 코드를 바꾸지 않고 트래픽 계층에서 정책을 건다
+resilience:
+  services: [core-gateway, service-account, service-order, service-product]
+  timeout: 10s
+  retries:
+    attempts: 2
+    perTryTimeout: 3s
+    retryOn: connect-failure,refused-stream,unavailable,cancelled,reset
+  connectionPool:
+    tcp:
+      maxConnections: 200
+      connectTimeout: 2s
+    http:
+      http1MaxPendingRequests: 200
+      maxRequestsPerConnection: 0
+  # 연속 5xx 를 내는 파드를 일정 시간 로드밸런싱에서 제외 (서킷 브레이커)
+  outlierDetection:
+    consecutive5xxErrors: 5
+    interval: 10s
+    baseEjectionTime: 30s
+    maxEjectionPercent: 50

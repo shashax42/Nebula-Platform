@@ -1,0 +1,41 @@
+{{- if .Values.ingress.enabled }}
+{{- $istio := .Values.istio.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nebula-edge
+  namespace: {{ ternary .Values.istio.gatewayNamespace .Values.backend.namespace $istio }}
+  labels:
+    {{- include "nebula-edge.labels" . | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-name: {{ printf "nebula-%s" .Values.environment | quote }}
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme }}
+    # 파드 IP 로 바로 보낸다 (NodePort 홉 없음, 파드 단위 헬스체크)
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ join "," .Values.ingress.allowedCidrs | quote }}
+    {{- if $istio }}
+    alb.ingress.kubernetes.io/healthcheck-port: "15021"
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz/ready
+    {{- else }}
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.backend.healthCheckPath }}
+    {{- end }}
+    {{- if .Values.ingress.certificateArn }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn }}
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    {{- else }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    {{- end }}
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ ternary .Values.istio.gatewayService .Values.backend.service $istio }}
+                port:
+                  number: {{ ternary 80 .Values.backend.port $istio }}
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nebula-edge
+description: Nebula 트래픽 진입 구조 — ALB Ingress (+ Istio Gateway / VirtualService / DestinationRule / PeerAuthentication)
+type: application
+version: 0.1.0
+appVersion: "1.0"

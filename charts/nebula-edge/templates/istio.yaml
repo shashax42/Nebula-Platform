@@ -1,0 +1,68 @@
+{{- if .Values.istio.enabled }}
+{{- $r := .Values.resilience }}
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: nebula-gateway
+  namespace: {{ .Values.istio.gatewayNamespace }}
+  labels:
+    {{- include "nebula-edge.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- toYaml .Values.istio.gatewaySelector | nindent 4 }}
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: nebula-edge
+  namespace: {{ .Values.backend.namespace }}
+  labels:
+    {{- include "nebula-edge.labels" . | nindent 4 }}
+spec:
+  hosts: ["*"]
+  gateways:
+    - {{ .Values.istio.gatewayNamespace }}/nebula-gateway
+  http:
+    - route:
+        - destination:
+            host: {{ printf "%s.%s.svc.cluster.local" .Values.backend.service .Values.backend.namespace }}
+            port:
+              number: {{ .Values.backend.port }}
+      timeout: {{ $r.timeout }}
+      retries:
+        {{- toYaml $r.retries | nindent 8 }}
+{{- range $svc := $r.services }}
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{ $svc }}
+  namespace: {{ $.Values.backend.namespace }}
+  labels:
+    {{- include "nebula-edge.labels" $ | nindent 4 }}
+spec:
+  host: {{ printf "%s.%s.svc.cluster.local" $svc $.Values.backend.namespace }}
+  trafficPolicy:
+    connectionPool:
+      {{- toYaml $r.connectionPool | nindent 6 }}
+    outlierDetection:
+      {{- toYaml $r.outlierDetection | nindent 6 }}
+{{- end }}
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: {{ .Values.backend.namespace }}
+  labels:
+    {{- include "nebula-edge.labels" . | nindent 4 }}
+spec:
+  mtls:
+    mode: {{ .Values.istio.mtlsMode }}
+{{- end }}

@@ -1,144 +1,37 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
+# ==========================================================================
+# Dev — "이 설계는 말이 되나?" (Assumption Layer)
+#   운영에서 틀릴 설계를 싸게, 빨리 드러내는 환경.
+#   - RDS 단일 인스턴스 + Redis(선택): 캐시 유무에 따른 실패 양상을 스위치 하나로 비교
+#   - ALB Ingress → core-gateway: 요청 진입 구조 자체를 설계 대상으로
+#   - Spot 노드, 짧은 로그 보존, 빠른 축소: 비용 최소화
+#   - 로컬에서는 compose/ 로 같은 구성요소를 가볍게 복제한다
+# ==========================================================================
 
-data "aws_iam_policy" "ebs_csi" {
-  name = "AmazonEBSCSIDriverPolicy"
-}
+module "platform" {
+  source = "../../modules/environment"
 
-locals {
-  cluster_name     = "eks-cluster-${random_string.suffix.result}"
-  cluster_vpc_name = "eks-vpc-${random_string.suffix.result}"
-}
+  environment  = "dev"
+  region       = var.region
+  network_cidr = "10.10.0.0/16"
 
-resource "random_string" "suffix" {
-  length = 8
-
-  lower   = true
-  upper   = false
-  numeric = true
-  special = false
-}
-
-# VPC 모듈 설정
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.0"
-
-  name = local.cluster_vpc_name
-
-  cidr = var.network_cidr
-  azs  = slice(data.aws_availability_zones.available.names, 0, 3)
-
-  # Private과 Public 서브넷을 설정합니다.
-  private_subnets = [cidrsubnet(var.network_cidr, 8, 1), cidrsubnet(var.network_cidr, 8, 2)]
-  public_subnets  = [cidrsubnet(var.network_cidr, 8, 101), cidrsubnet(var.network_cidr, 8, 102)]
-
-  enable_nat_gateway   = true
-  single_nat_gateway   = true
-  enable_dns_hostnames = true
-}
-
-# 별도의 internal_subnets을 정의하여 VPC에 연결
-resource "aws_subnet" "internal_subnet" {
-  count = length(slice(data.aws_availability_zones.available.names, 0, 3))
-
-  vpc_id                  = module.vpc.vpc_id
-  cidr_block              = cidrsubnet(var.network_cidr, 8, 3 + count.index)
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = false
-
-  tags = {
-    Name = "${local.cluster_vpc_name}-internal-${count.index + 1}"
+  cluster_endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
+  node_group = {
+    instance_types = ["t3.large", "t3a.large", "m5.large"]
+    capacity_type  = "SPOT"
+    min_size       = 2
+    max_size       = 4
+    desired_size   = 3
   }
-}
+  autoscaling        = { scale_down_utilization_threshold = 0.6, scale_down_unneeded_time = "5m", scale_down_delay_after_add = "5m" }
+  log_retention_days = 7
 
-# 내부 서브넷들을 리스트로 참조
-locals {
-  internal_subnets = aws_subnet.internal_subnet[*].id
-}
+  database = { engine = "rds", instance_class = "db.t3.medium", multi_az = false, backup_retention_period = 1 }
+  redis    = { enabled = var.enable_redis, node_type = "cache.t3.micro", shards = 1, replicas_per_shard = 1 }
 
-# RDS Subnet Group에 internal_subnets 사용
-resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "${local.cluster_name}-rds-subnet-group"
-  subnet_ids = local.internal_subnets # 내부 서브넷 ID 리스트 참조
+  istio   = { enabled = false }
+  ingress = { certificate_arn = var.ingress_certificate_arn }
 
-  tags = {
-    Name = "${local.cluster_name}-rds-subnet-group"
-  }
-}
-
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.0"
-
-  cluster_name    = local.cluster_name
-  cluster_version = "1.31"
-
-  cluster_endpoint_public_access = true
-
-  cluster_enabled_log_types = [
-    "api",
-    "audit",
-    "authenticator",
-    "controllerManager",
-    "scheduler"
-  ]
-
-  cluster_addons = {
-    coredns    = {}
-    kube-proxy = {}
-    vpc-cni    = {}
-  }
-
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets # eks 클러스터에 private 서브넷 사용
-  control_plane_subnet_ids = module.vpc.private_subnets # 컨트롤 플레인도 private 서브넷 사용
-
-  eks_managed_node_group_defaults = {
-    ami_type       = "AL2023_x86_64_STANDARD"
-    instance_types = ["t3.xlarge"]
-  }
-
-  eks_managed_node_groups = {
-    main_group = {
-      name           = "node-group-1"
-      instance_types = ["t3.xlarge"]
-      min_size       = 3
-      max_size       = 5
-      desired_size   = 3
-    }
-  }
-
-  enable_cluster_creator_admin_permissions = true
-}
-
-
-# S3 버킷 생성 (프라이빗 서브넷에 연결)
-resource "aws_s3_bucket" "private_s3" {
-  bucket = "private-s3-${random_string.suffix.result}"
-  acl    = "private"
-
-  tags = {
-    Name        = "Private S3 Bucket"
-    Environment = "development"
-  }
-
-  versioning {
-    enabled = true
-  }
-
-  lifecycle_rule {
-    id      = "auto-transition"
-    enabled = true
-
-    transition {
-      days          = 30
-      storage_class = "GLACIER"
-    }
-
-    expiration {
-      days = 365
-    }
-  }
+  gitops_token             = var.gitops_token
+  enable_aws_platform_apps = var.enable_aws_platform_apps
+  auth0                    = var.auth0
 }

@@ -49,6 +49,24 @@ variable "num_cache_clusters" {
   default     = 2
 }
 
+variable "cluster_mode_enabled" {
+  description = "Redis Cluster 모드 (샤딩). 애플리케이션이 cluster 클라이언트로 붙을 때 true"
+  type        = bool
+  default     = false
+}
+
+variable "num_node_groups" {
+  description = "클러스터 모드 샤드 수"
+  type        = number
+  default     = 1
+}
+
+variable "replicas_per_node_group" {
+  description = "클러스터 모드 샤드당 replica 수"
+  type        = number
+  default     = 1
+}
+
 variable "engine_version" {
   description = "Redis engine version"
   type        = string

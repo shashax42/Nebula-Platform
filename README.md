@@ -44,7 +44,7 @@ Nebula-Platform (이 레포) ─ terraform apply ─▶ EKS ─┬─ config-<sv
 | 축소 정책 | 5분 유휴 시 반납 | 기본 10분 | 15분 |
 | 로그 보존 | 7일 | 14일 | 90일 |
 
-공통: VPC 3 AZ(public / private / database 서브넷), S3 Gateway Endpoint, EKS 1.31, AWS Load Balancer Controller,
+공통: VPC 3 AZ(public / private / database 서브넷), S3 Gateway Endpoint, EKS 1.35, Istio 1.30(staging·prod), AWS Load Balancer Controller,
 metrics-server, Cluster Autoscaler, ArgoCD, Argo Rollouts(AMP 조회 IRSA), Kyverno, Strimzi.
 
 ## 구조
@@ -167,4 +167,6 @@ OTLP 를 Nebula-Monitoring `tools/local-stack` 으로 보낸 결과:
   (`okta-spring-boot` 가 Spring Boot 3.5 에서 사라진 `OAuth2ResourceServerProperties` 를 찾음). 의존성 정리가 nebula-services 에 필요하다.
 - ~~존재하지 않는 상품 조회 시 500~~: `6a5f289` 에서 service-product `BizException` 의 ResourceBundle 초기화가 실패했다.
   nebula-services `36bdc86` 이 `yaml-resource-bundle` 을 2.15.0 으로 고정해 원인이 해소되었다 (이 레포에서 재실행 확인은 하지 않음).
-- **EKS 버전**: 1.31 은 표준 지원이 끝나 연장 지원 요금이 붙는다. 1.32 → 1.33 순차 업그레이드가 필요하다 (`cluster_version`).
+- **버전 관리**: EKS 1.35 / Istio 1.30.5 / Cluster Autoscaler 차트 9.59.0(1.35.0) / ALB 컨트롤러 차트 1.17.1 (2026-10 기준).
+  Istio 1.30 은 Kubernetes 1.32~1.36 을 지원하므로 EKS 를 1.37 로 올리려면 Istio 도 함께 올려야 한다.
+  이미 만든 클러스터는 마이너 버전을 한 단계씩만 올릴 수 있다. ALB 컨트롤러 3.x 차트는 메이저 변경이라 별도 검토가 필요하다.

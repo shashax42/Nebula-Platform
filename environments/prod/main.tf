@@ -117,20 +117,46 @@ module "eks" {
 # S3 버킷 생성 (프라이빗 서브넷에 연결)
 resource "aws_s3_bucket" "private_s3" {
   bucket = "private-s3-${random_string.suffix.result}"
-  acl    = "private"
 
   tags = {
     Name        = "Private S3 Bucket"
     Environment = "development"
   }
+}
 
-  versioning {
-    enabled = true
+# 버킷 소유권 제어 (ACL 설정을 위해 필요)
+resource "aws_s3_bucket_ownership_controls" "private_s3" {
+  bucket = aws_s3_bucket.private_s3.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
   }
+}
 
-  lifecycle_rule {
-    id      = "auto-transition"
-    enabled = true
+# ACL 설정 (deprecated 인라인 acl 대체)
+resource "aws_s3_bucket_acl" "private_s3" {
+  depends_on = [aws_s3_bucket_ownership_controls.private_s3]
+
+  bucket = aws_s3_bucket.private_s3.id
+  acl    = "private"
+}
+
+# 버전 관리 설정 (deprecated 인라인 versioning 대체)
+resource "aws_s3_bucket_versioning" "private_s3" {
+  bucket = aws_s3_bucket.private_s3.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# 수명 주기 설정 (deprecated 인라인 lifecycle_rule 대체)
+resource "aws_s3_bucket_lifecycle_configuration" "private_s3" {
+  bucket = aws_s3_bucket.private_s3.id
+
+  rule {
+    id     = "auto-transition"
+    status = "Enabled"
 
     transition {
       days          = 30

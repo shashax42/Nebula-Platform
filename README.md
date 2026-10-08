@@ -73,13 +73,13 @@ shared/
 ## 배포
 
 ```bash
-# 0) state 저장소 (최초 1회)
-cd shared/terraform-backend && terraform init && terraform apply
+# 0) state 저장소 (계정당 최초 1회) — S3 버킷 + DynamoDB 락 테이블을 Terraform 으로 만들고
+#    environments/{dev,staging,prod}/backend.hcl 을 자동으로 써 준다 (Windows: init-backend.ps1)
+cd shared/terraform-backend && ./init-backend.sh
 
 # 1) 환경 (예: dev)
-cd environments/dev
-cp backend.hcl.example backend.hcl            # 버킷·락 테이블 이름 입력
-cp terraform.tfvars.example terraform.tfvars  # 토큰·인증서 등
+cd ../../environments/dev
+cp terraform.tfvars.example terraform.tfvars  # (선택) Auth0·HTTPS 인증서·private gitops 토큰이 있을 때만
 terraform init -backend-config=backend.hcl
 terraform apply
 $(terraform output -raw update_kubeconfig)
@@ -94,6 +94,11 @@ terraform apply -var environment=dev -var enable_target_monitoring=true -var tar
 cd ../../../../Nebula-Platform/environments/dev
 terraform apply -var enable_aws_platform_apps=true
 ```
+
+state 저장소를 따로 두는 이유: Terraform 은 state 를 저장할 곳이 먼저 있어야 나머지를 관리할 수 있고,
+그 저장소 자신은 자기 state 안에 넣을 수 없다(닭과 달걀). 그래서 `shared/terraform-backend` 만 로컬 state 로 한 번 만들고,
+이후 모든 환경은 그 버킷에 state 를 둔다. 임시가 아니라 계속 쓰는 기반 계층이며 지우면 안 된다.
+`backend "s3"` 블록은 변수를 쓸 수 없어 버킷 이름을 `backend.hcl` 로 init 때 넘긴다.
 
 apply 순서 안에서 서비스가 먼저 뜨지 않도록 의존성을 걸어 두었다:
 EKS → (애드온, Strimzi, Istio) → `backend` 네임스페이스 + 서비스 ConfigMap/Secret + DB 스키마 생성 Job → ArgoCD App of Apps.

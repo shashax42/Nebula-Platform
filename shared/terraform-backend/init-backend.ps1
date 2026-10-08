@@ -29,7 +29,7 @@ Write-Host "Step 3: terraform.tfvars 파일 생성" -ForegroundColor Yellow
 state_bucket_name   = "$BUCKET_NAME"
 dynamodb_table_name = "terraform-state-locks"
 aws_region         = "$AWS_REGION"
-"@ | Out-File -FilePath terraform.tfvars -Encoding UTF8
+"@ | Out-File -FilePath terraform.tfvars -Encoding ascii
 
 Write-Host "✅ terraform.tfvars 파일이 생성되었습니다." -ForegroundColor Green
 
@@ -60,7 +60,7 @@ region         = "$REGION"
 encrypt        = true
 dynamodb_table = "$TABLE"
 "@
-    $content | Out-File -FilePath "../backend-config/$ENV.hcl" -Encoding UTF8
+    $content | Out-File -FilePath "../../environments/$ENV/backend.hcl" -Encoding ascii
     Write-Host "✅ $ENV.hcl 파일이 업데이트되었습니다." -ForegroundColor Green
 }
 
@@ -77,6 +77,6 @@ Write-Host "- Region: $REGION"
 Write-Host ""
 Write-Host "각 환경에서 사용 방법:"
 Write-Host '  cd environments\dev'
-Write-Host '  terraform init -backend-config="..\..\shared\backend-config\dev.hcl"'
+Write-Host '  terraform init -backend-config=backend.hcl'
 Write-Host ""
 Write-Host "⚠️  주의: 이 Backend 인프라는 절대 삭제하지 마세요!" -ForegroundColor Yellow

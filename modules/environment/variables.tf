@@ -33,9 +33,9 @@ variable "nat_gateway_per_az" {
 # EKS
 # --------------------------------------------------------------------------
 variable "cluster_version" {
-  description = "EKS Kubernetes 버전"
+  description = "EKS Kubernetes 버전. Istio(istio.version)·Cluster Autoscaler 가 지원하는 범위 안에서 올린다"
   type        = string
-  default     = "1.31"
+  default     = "1.35"
 }
 
 variable "cluster_endpoint_public_access_cidrs" {
@@ -134,7 +134,7 @@ variable "istio" {
   EOT
   type = object({
     enabled   = bool
-    version   = optional(string, "1.27.9")
+    version   = optional(string, "1.30.5") # Kubernetes 1.32 ~ 1.36 지원
     mtls_mode = optional(string, "PERMISSIVE")
     gateway_replicas = optional(object({
       min = number

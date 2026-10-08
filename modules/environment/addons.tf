@@ -32,7 +32,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
-  version    = "1.10.0"
+  version    = "1.17.1" # 컨트롤러 v2.17.1. 3.x 차트는 메이저 변경이라 별도 검토 후 올린다
   namespace  = "kube-system"
 
   values = [yamlencode({
@@ -86,7 +86,7 @@ resource "helm_release" "cluster_autoscaler" {
   name       = "cluster-autoscaler"
   repository = "https://kubernetes.github.io/autoscaler"
   chart      = "cluster-autoscaler"
-  version    = "9.43.2"
+  version    = "9.59.0" # appVersion 1.35.0
   namespace  = "kube-system"
 
   values = [yamlencode({

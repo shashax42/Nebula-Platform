@@ -33,7 +33,7 @@ terraform {
 
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.15.0"
+      version = "~> 3.0"
     }
   }
 
@@ -62,10 +62,10 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = module.eks.cluster_endpoint
     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-    exec {
+    exec = {
       api_version = local.api_version
       args        = local.args
       command     = local.command

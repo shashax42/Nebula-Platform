@@ -66,26 +66,28 @@ resource "helm_release" "nlb_controller" {
   chart      = "aws-load-balancer-controller"
   version    = "1.10.0"
 
-  set {
-    name  = "clusterName"
-    value = data.aws_eks_cluster.cluster.name
-  }
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-  set {
-    name  = "serviceAccount.name"
-    value = kubernetes_service_account.nlb_controller.metadata[0].name
-  }
-  set {
-    name  = "region"
-    value = data.aws_region.current.name
-  }
-  set {
-    name  = "vpcId"
-    value = module.vpc.vpc_id
-  }
+  set = [
+    {
+      name  = "clusterName"
+      value = data.aws_eks_cluster.cluster.name
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "false"
+    },
+    {
+      name  = "serviceAccount.name"
+      value = kubernetes_service_account.nlb_controller.metadata[0].name
+    },
+    {
+      name  = "region"
+      value = data.aws_region.current.name
+    },
+    {
+      name  = "vpcId"
+      value = module.vpc.vpc_id
+    }
+  ]
 
   depends_on = [kubernetes_service_account.nlb_controller]
 }

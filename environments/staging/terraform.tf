@@ -16,7 +16,7 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.15"
+      version = "~> 3.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -56,12 +56,13 @@ provider "kubernetes" {
   }
 }
 
+# Helm provider 3.x: kubernetes / exec 는 블록이 아니라 객체 속성
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = module.platform.cluster_endpoint
     cluster_ca_certificate = base64decode(module.platform.cluster_certificate_authority_data)
 
-    exec {
+    exec = {
       api_version = local.eks_exec.api_version
       command     = local.eks_exec.command
       args        = local.eks_exec.args

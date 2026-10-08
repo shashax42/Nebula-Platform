@@ -1,0 +1,6 @@
+# shared/terraform-backend/init-backend.sh 가 이 파일을 backend.hcl 로 자동 생성한다 (수동으로 쓸 때만 참고)
+bucket         = "<shared/terraform-backend 로 만든 state 버킷>"
+key            = "env/prod/terraform.tfstate"   # Nebula-Monitoring 의 target_state_key 와 같은 경로
+region         = "ap-northeast-2"
+dynamodb_table = "<state lock 테이블>"
+encrypt        = true

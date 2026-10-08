@@ -1,0 +1,51 @@
+# -*- mode: ruby -*-
+# ==========================================================================
+# Staging 실패 재현 클러스터 (로컬, kubeadm 3 노드)
+#   EKS staging 에서는 일부러 만들기 어려운 실패 — 노드 장애, 노드 간 네트워크 지연·유실, 자원 경합 —
+#   를 VM 단위로 직접 일으켜 서비스(nebula-gitops 그대로)가 어떻게 실패하는지 관찰한다.
+#
+#   vagrant up                     # cp + worker-1 + worker-2 (약 12GB RAM)
+#   ./bootstrap.sh                 # kubeconfig 가져오기 + ArgoCD/Rollouts/Kyverno/Strimzi + nebula-root
+#   ./chaos/latency.sh worker-1 200 50   # worker-1 에 200ms±50ms 지연
+#   ./chaos/node-down.sh worker-2        # 노드 장애
+#   ./chaos/contention.sh worker-1 2 300 # CPU 2코어 5분 경합
+#   ./chaos/reset.sh                     # 모든 주입 해제
+# ==========================================================================
+
+K8S_MINOR   = ENV.fetch("NEBULA_K8S_MINOR", "1.31")   # EKS staging 과 같은 마이너 버전
+BOX         = ENV.fetch("NEBULA_BOX", "bento/ubuntu-22.04")
+SUBNET      = ENV.fetch("NEBULA_SUBNET", "192.168.56")
+WORKER_MEM  = Integer(ENV.fetch("NEBULA_WORKER_MEM", "4096"))
+WORKER_CPUS = Integer(ENV.fetch("NEBULA_WORKER_CPUS", "2"))
+
+NODES = [
+  { name: "cp",       ip: "#{SUBNET}.10", mem: 4096,       cpus: 2,           role: "control-plane" },
+  { name: "worker-1", ip: "#{SUBNET}.11", mem: WORKER_MEM, cpus: WORKER_CPUS, role: "worker" },
+  { name: "worker-2", ip: "#{SUBNET}.12", mem: WORKER_MEM, cpus: WORKER_CPUS, role: "worker" },
+].freeze
+
+Vagrant.configure("2") do |config|
+  config.vm.box = BOX
+  config.vm.box_check_update = false
+
+  NODES.each do |node|
+    config.vm.define node[:name], primary: node[:role] == "control-plane" do |vm|
+      vm.vm.hostname = node[:name]
+      vm.vm.network "private_network", ip: node[:ip]
+
+      vm.vm.provider "virtualbox" do |vb|
+        vb.name   = "nebula-staging-#{node[:name]}"
+        vb.memory = node[:mem]
+        vb.cpus   = node[:cpus]
+      end
+
+      vm.vm.provision "shell", path: "provision/common.sh", env: { "K8S_MINOR" => K8S_MINOR, "NODE_IP" => node[:ip] }
+
+      if node[:role] == "control-plane"
+        vm.vm.provision "shell", path: "provision/control-plane.sh", env: { "NODE_IP" => node[:ip] }
+      else
+        vm.vm.provision "shell", path: "provision/worker.sh"
+      end
+    end
+  end
+end

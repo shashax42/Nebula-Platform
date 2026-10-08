@@ -70,9 +70,15 @@ variable "engine" {
 }
 
 variable "engine_version" {
-  description = "Database engine version"
+  description = "Database engine version (null 이면 해당 엔진의 AWS 기본 버전)"
   type        = string
-  default     = "8.0.mysql_aurora.3.04.1"
+  default     = null
+}
+
+variable "availability_zones" {
+  description = "인스턴스를 배치할 AZ 목록 (인스턴스 순서대로 순환 배치). 비우면 AWS 가 선택"
+  type        = list(string)
+  default     = []
 }
 
 variable "engine_family" {

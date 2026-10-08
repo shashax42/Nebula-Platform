@@ -58,7 +58,7 @@ REGION=$(terraform output -raw s3_bucket_region)
 echo -e "${YELLOW}Step 6: 환경별 backend 설정 파일 업데이트${NC}"
 
 for ENV in dev staging prod; do
-    cat > ../backend-config/${ENV}.hcl <<EOF
+    cat > ../../environments/${ENV}/backend.hcl <<EOF
 # Backend configuration for ${ENV} environment
 bucket         = "${BUCKET}"
 key            = "env/${ENV}/terraform.tfstate"
@@ -66,7 +66,7 @@ region         = "${REGION}"
 encrypt        = true
 dynamodb_table = "${TABLE}"
 EOF
-    echo -e "${GREEN}✅ ${ENV}.hcl 파일이 업데이트되었습니다.${NC}"
+    echo -e "${GREEN}✅ environments/${ENV}/backend.hcl 생성${NC}"
 done
 
 # 7. 완료 메시지
@@ -82,6 +82,6 @@ echo "- Region: ${REGION}"
 echo ""
 echo "각 환경에서 사용 방법:"
 echo "  cd environments/dev"
-echo "  terraform init -backend-config=\"../../shared/backend-config/dev.hcl\""
+echo "  terraform init -backend-config=backend.hcl"
 echo ""
 echo -e "${YELLOW}⚠️  주의: 이 Backend 인프라는 절대 삭제하지 마세요!${NC}"

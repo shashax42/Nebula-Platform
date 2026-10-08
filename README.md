@@ -165,5 +165,6 @@ OTLP 를 Nebula-Monitoring `tools/local-stack` 으로 보낸 결과:
   인프라 경로(ALB → 게이트웨이)와 서비스 간 정책(Istio)은 준비되어 있고, 라우트는 서비스 레포에서 켜야 한다.
 - **core-gateway 기동 실패 (서비스 코드)**: `6a5f289` 빌드는 환경과 무관하게 시작 단계에서 멈춘다
   (`okta-spring-boot` 가 Spring Boot 3.5 에서 사라진 `OAuth2ResourceServerProperties` 를 찾음). 의존성 정리가 nebula-services 에 필요하다.
-- **존재하지 않는 상품 조회 시 500 (서비스 코드)**: service-product `BizException` 의 정적 ResourceBundle 초기화가 실패해 404 대신 500 이 난다.
+- ~~존재하지 않는 상품 조회 시 500~~: `6a5f289` 에서 service-product `BizException` 의 ResourceBundle 초기화가 실패했다.
+  nebula-services `36bdc86` 이 `yaml-resource-bundle` 을 2.15.0 으로 고정해 원인이 해소되었다 (이 레포에서 재실행 확인은 하지 않음).
 - **EKS 버전**: 1.31 은 표준 지원이 끝나 연장 지원 요금이 붙는다. 1.32 → 1.33 순차 업그레이드가 필요하다 (`cluster_version`).

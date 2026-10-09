@@ -12,7 +12,7 @@
 #   ./chaos/reset.sh                     # 모든 주입 해제
 # ==========================================================================
 
-K8S_MINOR   = ENV.fetch("NEBULA_K8S_MINOR", "1.31")   # EKS staging 과 같은 마이너 버전
+K8S_MINOR   = ENV.fetch("NEBULA_K8S_MINOR", "1.35")   # EKS staging 과 같은 마이너 버전
 BOX         = ENV.fetch("NEBULA_BOX", "bento/ubuntu-22.04")
 SUBNET      = ENV.fetch("NEBULA_SUBNET", "192.168.56")
 WORKER_MEM  = Integer(ENV.fetch("NEBULA_WORKER_MEM", "4096"))

@@ -163,8 +163,10 @@ OTLP 를 Nebula-Monitoring `tools/local-stack` 으로 보낸 결과:
   DB·Redis 연결 정보가 없어 서비스 파드는 뜨지 않는다. 서비스 단위 실험은 `dev/compose` 를 함께 쓴다.
 - **core-gateway 라우팅**: nebula-services 의 `route.yml` 라우트가 주석 처리되어 있어 게이트웨이가 하위 서비스로 프록시하지 않는다.
   인프라 경로(ALB → 게이트웨이)와 서비스 간 정책(Istio)은 준비되어 있고, 라우트는 서비스 레포에서 켜야 한다.
-- **core-gateway 기동 실패 (서비스 코드)**: `6a5f289` 빌드는 환경과 무관하게 시작 단계에서 멈춘다
-  (`okta-spring-boot` 가 Spring Boot 3.5 에서 사라진 `OAuth2ResourceServerProperties` 를 찾음). 의존성 정리가 nebula-services 에 필요하다.
+- **core-gateway 와 Auth0**: `6a5f289` 빌드는 `okta-spring-boot-starter:+` 가 Boot 4 용 버전으로 풀려 기동에 실패했다
+  (nebula-services PR #5 에서 3.0.8 로 고정해 수정, 로컬 OIDC 발급자로 기동·로그인 리다이렉트 확인).
+  게이트웨이는 기동할 때 Auth0 OIDC 설정을 읽으므로 **`auth0` 변수(terraform.tfvars)가 비어 있으면 재시작을 반복한다**.
+  비어 있으면 plan 에서 `auth0_for_gateway` 경고가 나온다.
 - ~~존재하지 않는 상품 조회 시 500~~: `6a5f289` 에서 service-product `BizException` 의 ResourceBundle 초기화가 실패했다.
   nebula-services `36bdc86` 이 `yaml-resource-bundle` 을 2.15.0 으로 고정해 원인이 해소되었다 (이 레포에서 재실행 확인은 하지 않음).
 - **버전 관리**: EKS 1.35 / Istio 1.30.5 / Cluster Autoscaler 차트 9.59.0(1.35.0) / ALB 컨트롤러 차트 1.17.1 (2026-10 기준).

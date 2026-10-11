@@ -1,6 +1,7 @@
 # ==========================================================================
 # GitOps / Progressive Delivery / Policy — 모든 환경 공통
-#   ArgoCD 가 nebula-gitops 의 platform/apps 를 App of Apps 로 동기화한다.
+#   ArgoCD 가 nebula-gitops 의 platform/envs/<environment> 를 App of Apps 로 동기화한다.
+#   dev 는 CI 가 올린 이미지를 바로 받고, staging/prod 는 승격 PR(envs/<env> 오버레이)로 받는다.
 #   서비스 배포, Kyverno 정책, 롤백 분석 템플릿은 모두 nebula-gitops 에서 관리된다.
 #   서비스 이미지는 nebula-ci-templates 파이프라인이 빌드·서명하고 nebula-gitops 의 태그를 올린다.
 # ==========================================================================
@@ -112,7 +113,7 @@ resource "kubernetes_secret_v1" "gitops_repo" {
   }
 }
 
-# App of Apps 진입점 (nebula-gitops/platform/root.yaml 과 동일).
+# App of Apps 진입점 (nebula-gitops/platform/root.yaml 과 같은 구성, 경로만 환경별).
 # 서비스가 뜨기 전에 서비스 설정(services.tf)과 정책 엔진·오퍼레이터가 먼저 준비되도록 의존성을 건다
 resource "helm_release" "argocd_root" {
   depends_on = [
@@ -142,7 +143,7 @@ resource "helm_release" "argocd_root" {
         source = {
           repoURL        = var.gitops_repo_url
           targetRevision = var.gitops_revision
-          path           = "platform/apps"
+          path           = "platform/envs/${var.environment}"
         }
         destination = {
           server    = "https://kubernetes.default.svc"

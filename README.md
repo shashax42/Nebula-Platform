@@ -23,7 +23,9 @@ Nebula-Platform (이 레포) ─ terraform apply ─▶ EKS ─┬─ config-<sv
                                                                         └ ArgoCD: OTel Collector + kube-state-metrics + 카나리 분석(AMP)
 ```
 
-- 매니페스트(nebula-gitops)는 모든 환경이 같다. 환경마다 다른 연결 정보는 이 레포가 클러스터에
+- 각 클러스터의 ArgoCD 는 nebula-gitops 의 `platform/envs/<environment>` 를 따른다. dev 는 CI 가 올린 새 이미지를 바로 받고,
+  staging·prod 는 앞 환경에서 검증된 이미지를 승격 PR(`envs/<env>` 오버레이, promote 워크플로)로만 받는다.
+- 매니페스트 구조(nebula-gitops)는 모든 환경이 같다. 환경마다 다른 연결 정보는 이 레포가 클러스터에
   `config-<service>` ConfigMap / `secret-<service>` Secret 으로 넣는다 (`modules/environment/services.tf`).
   변수 이름은 nebula-services 의 `src/main/resources/config/*.yml` 플레이스홀더와 1:1 이다.
 - 서비스는 OTLP 로 `otel-collector.monitoring.svc:4318`(nebula-gitops `config-common`) 에 텔레메트리를 보내고,
@@ -45,7 +47,7 @@ Nebula-Platform (이 레포) ─ terraform apply ─▶ EKS ─┬─ config-<sv
 | 로그 보존 | 7일 | 14일 | 90일 |
 
 공통: VPC 3 AZ(public / private / database 서브넷), S3 Gateway Endpoint, EKS 1.35, Istio 1.30(staging·prod), AWS Load Balancer Controller,
-metrics-server, Cluster Autoscaler, ArgoCD, Argo Rollouts(AMP 조회 IRSA), Kyverno, Strimzi.
+metrics-server, Cluster Autoscaler, EBS CSI Driver + gp3 기본 StorageClass(Kafka 영속 볼륨), ArgoCD, Argo Rollouts(AMP 조회 IRSA), Kyverno, Strimzi.
 
 ## 구조
 

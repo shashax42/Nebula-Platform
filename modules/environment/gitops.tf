@@ -120,6 +120,7 @@ resource "helm_release" "argocd_root" {
     helm_release.argo_rollouts,
     helm_release.kyverno,
     helm_release.strimzi,
+    kubernetes_storage_class_v1.gp3, # data-kafka 의 PVC 가 바로 바인딩되도록
     helm_release.istio_ingressgateway,
     kubernetes_secret_v1.gitops_repo,
     kubernetes_config_map_v1.service,

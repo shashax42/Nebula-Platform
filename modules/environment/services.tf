@@ -183,3 +183,12 @@ resource "kubernetes_job_v1" "db_bootstrap" {
     replace_triggered_by = [kubernetes_secret_v1.db_admin]
   }
 }
+
+# core-gateway 는 기동할 때 https://<auth0.domain>/.well-known/openid-configuration 을 읽는다.
+# 값이 없으면 게이트웨이가 계속 재시작하므로 plan 단계에서 경고한다 (막지는 않는다: 다른 서비스는 영향 없음)
+check "auth0_for_gateway" {
+  assert {
+    condition     = nonsensitive(var.auth0.domain != "")
+    error_message = "auth0.domain 이 비어 있습니다. core-gateway 는 Auth0 OIDC 설정 없이 기동하지 못하고 재시작을 반복합니다. terraform.tfvars 의 auth0 값을 채우세요."
+  }
+}

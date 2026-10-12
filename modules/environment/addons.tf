@@ -2,6 +2,7 @@
 # 클러스터 애드온
 #   AWS Load Balancer Controller : Ingress → ALB (트래픽 진입 구조를 코드로 설계)
 #   metrics-server               : HPA 가 읽는 CPU/메모리
+#   EBS CSI Driver + gp3         : Kafka 같은 상태 저장 워크로드의 영속 볼륨
 #   Cluster Autoscaler           : 파드가 Pending 이면 노드 추가, 놀면 반납 (FinOps)
 #   Istio (staging / prod)       : 서비스 간 트래픽 정책(재시도·타임아웃·서킷브레이커·mTLS)을 앱 밖에서 제어
 # ==========================================================================
@@ -32,7 +33,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
-  version    = "1.10.0"
+  version    = "1.17.1" # 컨트롤러 v2.17.1. 3.x 차트는 메이저 변경이라 별도 검토 후 올린다
   namespace  = "kube-system"
 
   values = [yamlencode({
@@ -57,6 +58,61 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = "3.12.2"
   namespace  = "kube-system"
+}
+
+# --------------------------------------------------------------------------
+# EBS CSI Driver + gp3 기본 StorageClass: 상태가 있는 워크로드(Strimzi Kafka 브로커·컨트롤러)의 PVC 를 EBS 로 만든다
+# EKS 1.30 부터 새 클러스터의 gp2 StorageClass 에는 기본값 표시가 없어서, 기본 StorageClass 를 직접 둬야 PVC 가 Pending 에 머물지 않는다
+# --------------------------------------------------------------------------
+module "ebs_csi_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name             = "${local.cluster_name}-ebs-csi-driver"
+  attach_ebs_csi_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = local.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  depends_on = [module.eks]
+
+  cluster_name                = module.eks.cluster_name
+  addon_name                  = "aws-ebs-csi-driver"
+  service_account_role_arn    = module.ebs_csi_irsa.iam_role_arn
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = local.tags
+}
+
+resource "kubernetes_storage_class_v1" "gp3" {
+  depends_on = [aws_eks_addon.ebs_csi]
+
+  metadata {
+    name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" = "true"
+    }
+  }
+
+  storage_provisioner    = "ebs.csi.aws.com"
+  volume_binding_mode    = "WaitForFirstConsumer" # 파드가 뜬 AZ 에 볼륨을 만든다 (EBS 는 AZ 에 묶임)
+  allow_volume_expansion = true
+  # prod 는 PVC 를 실수로 지워도 EBS 볼륨이 남는다. dev/staging 은 비용을 위해 함께 지운다
+  reclaim_policy = var.environment == "prod" ? "Retain" : "Delete"
+
+  parameters = {
+    type      = "gp3"
+    encrypted = "true"
+  }
 }
 
 # --------------------------------------------------------------------------
@@ -86,7 +142,7 @@ resource "helm_release" "cluster_autoscaler" {
   name       = "cluster-autoscaler"
   repository = "https://kubernetes.github.io/autoscaler"
   chart      = "cluster-autoscaler"
-  version    = "9.43.2"
+  version    = "9.59.0" # appVersion 1.35.0
   namespace  = "kube-system"
 
   values = [yamlencode({

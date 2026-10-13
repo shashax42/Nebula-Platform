@@ -37,11 +37,11 @@ Nebula-Platform (이 레포) ─ terraform apply ─▶ EKS ─┬─ config-<sv
 |---|---|---|---|
 | 질문 | 이 설계는 말이 되나? (Assumption) | 이 가정이 실제로 깨질 수 있나? (Validation) | 사람이 아니라 시스템이 결정할 수 있는가? (Decision) |
 | 로컬 | `dev/compose` — 운영 구성요소를 가볍게 복제 | `staging/vagrant` — 노드 장애·지연·경합 재현 | — |
-| DB | RDS MySQL 단일 AZ | RDS MySQL **Multi-AZ** | **Aurora MySQL** writer + reader 1 (AZ 분산) |
-| Redis | Cluster 1샤드, **선택** (`enable_redis`) | Cluster 1샤드, Multi-AZ | Cluster 2샤드, Multi-AZ, **캐시 전용**(백업 없음) |
+| DB | RDS MySQL 단일 AZ | RDS MySQL **Multi-AZ** | **Aurora MySQL** writer + reader 1 (AZ 분산, db.t4g.medium) |
+| Redis | Cluster 1샤드, **선택** (`enable_redis`) | Cluster 1샤드, Multi-AZ | Cluster 1샤드 + replica, Multi-AZ, **세션·캐시**(백업 없음) |
 | 비동기 | Kafka (Strimzi) | Kafka + **SQS**(+DLQ) | Kafka |
 | 진입 | **ALB Ingress** → core-gateway | ALB → **Istio**(PERMISSIVE) → core-gateway | ALB → Istio(**STRICT mTLS**) → core-gateway |
-| 노드 | Spot t3.large 계열 2~4 | t3.xlarge 3~6 | m6i.xlarge 3~**9** |
+| 노드 | Spot t3.large 계열 2~4 | t3.xlarge 3~6 | m6i.large 3~**9** (적정 크기 가정) |
 | NAT | 1개 | 1개 | AZ 별 |
 | 축소 정책 | 5분 유휴 시 반납 | 기본 10분 | 15분 |
 | 로그 보존 | 7일 | 14일 | 90일 |
@@ -121,6 +121,13 @@ EKS → (애드온, Strimzi, Istio) → `backend` 네임스페이스 + 서비스
 - replica 데이터소스: prod 는 Aurora reader endpoint, dev / staging 은 writer 와 같은 주소(standby 는 읽기 불가).
 - Redis 는 ElastiCache Cluster 모드 + TLS + AUTH. 서비스 설정의 6개 노드 자리에 configuration endpoint 를 넣고 `SPRING_DATA_REDIS_SSL_ENABLED=true`.
 - DB·Redis 비밀번호는 `random_password` 로 만들어 Kubernetes Secret 으로만 전달한다 (tfvars 에 비밀번호 없음).
+
+## 운영 비용 (prod, 요금표 기준 구성 비교)
+
+리팩토링 전 AWS 에서 운영하던 구성과 지금 prod 구성을 **같은 AWS 서울 리전 공식 단가**로 비교하면
+인프라 비용이 시간당 $1.73 → $1.02 (**약 41% 감소**)다. 관리형 모니터링(AMP·AMG·CloudWatch)을 더하면
+약 32~36% 감소다. 실제 청구액이 아니라 **적정 크기 가정의 구성 기준 추정**이고, 부하에 따라 노드·DB 크기가 커지면 달라진다.
+계산식·단가 출처·가정: [docs/COST_COMPARISON.md](docs/COST_COMPARISON.md)
 
 ## 목표 지표와 근거
 

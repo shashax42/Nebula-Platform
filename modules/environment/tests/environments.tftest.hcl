@@ -132,9 +132,9 @@ run "prod" {
     environment        = "prod"
     network_cidr       = "10.30.0.0/16"
     nat_gateway_per_az = true
-    node_group         = { instance_types = ["m6i.xlarge"], min_size = 3, max_size = 9, desired_size = 3 }
-    database           = { engine = "aurora", instance_class = "db.r6g.large", reader_count = 1, deletion_protection = true }
-    redis              = { node_type = "cache.r7g.large", shards = 2, multi_az = true, snapshot_retention_limit = 0 }
+    node_group         = { instance_types = ["m6i.large"], min_size = 3, max_size = 9, desired_size = 3 }
+    database           = { engine = "aurora", instance_class = "db.t4g.medium", reader_count = 1, deletion_protection = true }
+    redis              = { node_type = "cache.t4g.small", shards = 1, multi_az = true, snapshot_retention_limit = 0 }
     istio              = { enabled = true, mtls_mode = "STRICT" }
   }
 
